@@ -1,0 +1,242 @@
+using System.Collections;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityStandardAssets.CrossPlatformInput;
+
+namespace UnityStandardAssets._2D
+{
+    public class Platformer2DUserControl : MonoBehaviour
+    {
+        // Public variables
+        public bool _movingByTouch = false;
+
+        public Utils.keyType _key;
+        public Text _heart_count_text;
+        public Text _hint_text;
+        public Sprite _key_orange;
+        public Sprite _key_blue;
+        public Sprite _key_green;
+        public Sprite _key_white;
+        public GameObject _key_placeholder;
+        //public GameObject _hint;                // The Object Text 'hint
+
+        // Private variables
+        private float _horizontalMovement = 0f;
+        private int _heartcount;
+        private int _pause;
+        private bool _leftTouchPressed;
+        private bool _rightTouchPressed;
+        private bool _jumpTouchPressed;
+        private bool _m_Jump;
+        private bool _ishidden;
+        private bool _touchingBox;
+        private bool _touchingChest;
+
+        private AudioSource _audio;
+        private SpriteRenderer _key_placeholder_sprite;
+        private ChestScript _chest;
+
+        private void Awake()
+        {
+            _ishidden = false;
+            _touchingBox = false;
+            _touchingChest = false;
+            _leftTouchPressed = false;
+            _rightTouchPressed = false;
+            _jumpTouchPressed = false;
+            
+            Screen.orientation = ScreenOrientation.LandscapeRight;
+            _audio = GetComponent<AudioSource>();
+
+            _key_placeholder = GameObject.FindGameObjectWithTag("key_placeholder");
+            _key_placeholder_sprite = _key_placeholder.GetComponent<SpriteRenderer>();
+
+            _heartcount = 0;
+            _pause = 3;
+            _hint_text.text = "";
+            getHeartScore();
+        }
+
+        private void Update()
+        {
+            if (!_m_Jump)
+            {
+                // Read the jump input in Update so button presses aren't missed.
+                _m_Jump = CrossPlatformInputManager.GetButtonDown("Jump");
+            }
+            _horizontalMovement = CrossPlatformInputManager.GetAxis("Horizontal");
+        }
+
+        IEnumerator Pause()
+        {
+            yield return new WaitForSeconds(_pause);
+            _hint_text.text = "";
+        }
+
+
+        public void OnTriggerStay2D(Collider2D other)
+        {
+            if (other.gameObject.CompareTag("chest"))
+            {
+                ChestScript chest = other.GetComponent<ChestScript>();
+                _chest = chest;
+            }            
+        }
+
+        public void touchKeyUp(int key)
+        {
+            switch (key)
+            {
+                case 0:
+                    _leftTouchPressed = false;
+                    _audio.Stop();
+                    break;
+                case 1:
+                    _rightTouchPressed = false;
+                    _audio.Stop();
+                    break;
+                case 2:
+                    _jumpTouchPressed = false;
+                    break;
+            }
+        }
+
+        public void touchKeyDown(int key)
+        {
+            switch (key)
+            {
+                case 0:
+                    _leftTouchPressed = true;
+                    _audio.Play();  
+                    break;
+                case 1:
+                    _rightTouchPressed = true;
+                    _audio.Play();
+                    break;
+                case 2:
+                    _jumpTouchPressed = true;
+                    break;
+                case 3:
+                    if (_touchingBox)
+                    {
+                        if (_ishidden == false)
+                        {
+                            gameObject.SetActive(false);
+                            _ishidden = true;
+                        }
+                        else
+                        {
+                            gameObject.SetActive(true);
+                            _ishidden = false;
+                        }
+                    }
+                    if (_touchingChest)
+                    {
+                        if (this._key != Utils.keyType.none)
+                        {
+                            _hint_text.text = "Habe bereits einen Schluessel!";
+                            Debug.Log("test");
+                            StartCoroutine(Pause());
+                            return;
+                        }
+                        if (_chest.openChest())
+                        {
+                            // If chest is open, look if there is any key except "none", if so, take it from the chest.
+                            if (_chest._key != Utils.keyType.none)
+                            {
+                                this._key = _chest._key;
+                                _chest._key = Utils.keyType.none;
+                                _hint_text.text = "Habe einen Schluessel genommen";
+                                string keyName = ((Utils.keyType)1).ToString();
+
+                                //Picking the right key(color) out of the chest (same color)
+                                if (this._key.Equals((Utils.keyType)1))
+                                {
+                                    Debug.Log("green");
+                                    _key_placeholder_sprite.sprite = _key_green;
+                                }
+                                if (this._key.Equals((Utils.keyType)2))
+                                {
+                                    Debug.Log("orange");
+                                    _key_placeholder_sprite.sprite = _key_orange;
+                                }
+                                if (this._key.Equals((Utils.keyType)3))
+                                {
+                                    Debug.Log("blue");
+                                    _key_placeholder_sprite.sprite = _key_blue;
+                                }
+                                if (this._key.Equals((Utils.keyType)4))
+                                {
+                                    Debug.Log("white");
+                                    _key_placeholder_sprite.sprite = _key_white;
+                                }
+
+                                StartCoroutine(Pause());
+
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (_leftTouchPressed)
+            {
+                _horizontalMovement = -1;
+            }
+            if (_rightTouchPressed)
+            {
+                _horizontalMovement = 1;
+            }
+            if (_jumpTouchPressed)
+            {
+                _m_Jump = true;
+                _jumpTouchPressed = false;
+            }
+
+            _m_Jump = false;
+
+            // Hearts Score will be updated
+            getHeartScore();
+        }
+
+        public void OnTriggerEnter2D(Collider2D other)
+        {
+            if (other.gameObject.CompareTag("heart"))
+            {
+                other.gameObject.SetActive(false);
+                _heartcount++;
+            }            
+
+            if (other.gameObject.CompareTag("box"))
+            {
+                _touchingBox = true;
+            }
+
+            if (other.gameObject.CompareTag("chest"))
+            {
+                _touchingChest = true;
+            }
+        }
+
+        public void OnTriggerExit2D(Collider2D other)
+        {
+            if (other.gameObject.CompareTag("box"))
+            {
+                _touchingBox = false;
+            }
+
+            if (other.gameObject.CompareTag("chest"))
+            {
+                _touchingChest = false;
+            }
+        }
+
+        public void getHeartScore()
+        {
+            _heart_count_text.text = "Hearts: " + _heartcount.ToString();
+        }
+    }
+}
